@@ -26,11 +26,11 @@ UTAH_TIMEZONE = timezone('US/Mountain')
 
 def read_arguments():
     print("Welcome to BYU Room Finder Backend")
-    print("[ now | at | between ]")
-    type = input("Enter type: ")
-
     print("[ any | MARB | TMCB | ... ]")
     building = input("Enter building name: ")
+
+    print("[ now | at | between ]")
+    type = input("Enter type of search: ")
 
     if type == 'at' or type == 'between':
         print("[ ##:##:## - 24hr Time Format ]")
