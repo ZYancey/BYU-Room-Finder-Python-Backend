@@ -155,7 +155,7 @@ def main():
                 # look up the current time in mountain time to query a "now" value?
                 cur.execute(
                     """INSERT INTO events (room_id, name, days, start_time, end_time)
-                       VALUES (%s, %s, %s::weekday[], %s, %s)""",
+                        VALUES (%s, %s, %s::weekday[], %s, %s)""",
                     (
                         room_id,
                         class_["name"],

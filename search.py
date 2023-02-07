@@ -1,10 +1,11 @@
-from datetime import datetime
-
-from peewee import SQL
-from pytz import timezone
-
 import psycopg2
 import re
+
+from datetime import datetime
+from peewee import SQL
+from pytz import timezone
+from typing import Union
+
 
 from models import Buildings, Events, Rooms, database
 
@@ -18,40 +19,14 @@ DAY_MAP = {
     'Sun': 'Su',
 }
 
-# TODO: make this dynamic for earliest/latest hours
-TIMES = [f"{h % 12 or 12}:{m:02} {'AM' if h < 12 else 'PM'}" for h in range(6, 23) for m in range(0, 60, 15)]
-
 UTAH_TIMEZONE = timezone('US/Mountain')
 
 
-def read_arguments():
-    print("Welcome to BYU Room Finder Backend")
-    print("[ any | MARB | TMCB | ... ]")
-    building = input("Enter building name: ")
-
-    print("[ now | at | between ]")
-    type = input("Enter type of search: ")
-
-    if type == 'at' or type == 'between':
-        print("[ ##:##:## - 24hr Time Format ]")
-        timeA = input("Enter time: ")
-        if type == 'between':
-            timeB = input("Enter time: ")
-        else:
-            timeB = ''
-        print("[ S | M | T | W | Th | F | Sa ]")
-        days = str("'" + input("Enter days: ") + "'")
-    else:
-        timeA = ''
-        timeB = ''
-        days = "''"
-    return building, type, timeA, timeB, days
-
-
 def run_query(query):
+    global conn, cur
     try:
         conn = psycopg2.connect(
-            host="192.168.50.235",
+            host="100.100.33.71",
             port="49154",
             database="byu",
             user="postgres",
@@ -62,30 +37,33 @@ def run_query(query):
         result = cur.fetchall()
         return result
     except (Exception, psycopg2.Error) as error:
-        print("Error while connecting to PostgreSQL", error)
+        print("Error while connecting to Postgres", error)
+        if conn:
+            cur.close()
+            conn.close()
     finally:
         if conn:
             cur.close()
             conn.close()
 
 
-def lookup(input_building, input_time_type, input_timeA, input_timeB, input_days):
+def lookup(input_building, input_room, input_time_type, input_timeA, input_timeB, input_days):
     database.connect()
-    result = []
-    buildings = Buildings.select()
-    show_results = 'none'
     if True:
         result = Rooms.select(Rooms, Buildings) \
             .join(Buildings) \
             .where(Rooms.description == 'CLASSROOM')
 
         building_name = input_building
-        if building_name != 'any':
+        if building_name != 'ANY':
             building = Buildings.get(Buildings.name == building_name)
             result = result.where(Rooms.building == building)
 
         conflicting_events = Events.select()
-        days = input_days
+        current_events = Events.select()
+        days: Union[list[str], list] = []
+        for i in input_days:
+            days.append(i)
 
         if input_time_type == 'now':
             now = datetime.now(UTAH_TIMEZONE).time()
@@ -95,41 +73,51 @@ def lookup(input_building, input_time_type, input_timeA, input_timeB, input_days
                 .where(
                 (Events.start_time <= now) & (Events.end_time > now)
             )
+        elif input_time_type == 'when':
+            now = datetime.now(UTAH_TIMEZONE)
+            day = DAY_MAP[now.strftime('%a')]
+            current_events = current_events \
+                .select(Events.name, Events.start_time, Events.end_time) \
+                .join(Rooms, on=Events.room_id) \
+                .join(Buildings, on=Rooms.building_id) \
+                .where(Buildings.name == input_building) \
+                .where(Rooms.number == input_room) \
+                .where(Events.end_time >= now.time()) \
+                .where(SQL("days && ARRAY['%s']::weekday[]" % day)) \
+                .order_by(Events.start_time) \
+                .limit(5)
         elif input_time_type == 'at':
             if not re.match("^[0-2][0-9]:[0-5][0-9]:[0-5][0-9]$", input_timeA):
+                database.close()
                 raise Exception("from and to times required for time range")
-            time = input_timeA
+            time_temp = input_timeA
             conflicting_events = conflicting_events \
                 .where(SQL("days && ARRAY[%s]::weekday[]" % days)) \
                 .where(
-                (Events.start_time <= time) & (Events.end_time > time)
+                (Events.start_time <= time_temp) & (Events.end_time > time_temp)
             )
         elif input_time_type == 'between':
             if not re.match("^[0-2][0-9]:[0-5][0-9]:[0-5][0-9]$", input_timeA) or \
                     not re.match("^[0-2][0-9]:[0-5][0-9]:[0-5][0-9]$", input_timeB):
+                database.close()
                 raise Exception("from and to times required for time range")
             conflicting_events = conflicting_events \
                 .where(SQL("days && ARRAY[%s]::weekday[]" % days)) \
                 .where(
-                    SQL(
-                        "timerange(start_time::time, end_time::time, '()') && timerange('%s'::time, '%s'::time)" %
-                        (input_timeA, input_timeB)
-                    )
+                SQL(
+                    "timerange(start_time::time, end_time::time, '()') && timerange('%s'::time, '%s'::time)" %
+                    (input_timeA, input_timeB)
                 )
+            )
 
-        result = result \
-            .where(Rooms.id.not_in([*map(lambda x: x.room_id, conflicting_events)])) \
-            .order_by(Buildings.name, Rooms.number)
-
-        show_results = 'no_results' if len(result) == 0 else 'all'
-
-        query_str = str(result.select(Rooms.number, Buildings.name))
+        if input_time_type == "when":
+            query_str = str(current_events)
+        else:
+            result = result \
+                .where(Rooms.id.not_in([*map(lambda x: x.room_id, conflicting_events)])) \
+                .order_by(Buildings.name, Rooms.number)
+            query_str = str(result.select(Rooms.number, Buildings.name))
 
     database.close()
 
     return run_query(query_str)
-
-
-if __name__ == '__main__':
-    building, type, timeA, timeB, days = read_arguments()
-    print(lookup(building, type, timeA, timeB, days))

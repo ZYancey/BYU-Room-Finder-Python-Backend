@@ -1,10 +1,8 @@
-import os
-
 from peewee import CharField, Field, ForeignKeyField, Model, TimeField
 from playhouse.db_url import connect
-from playhouse.postgres_ext import PostgresqlExtDatabase, ArrayField
+from playhouse.postgres_ext import ArrayField
 
-database = connect(url='postgresql://192.168.50.235:49154/byu?user=postgres&password=postgres')
+database = connect(url='postgresql://100.100.33.71:49154/byu?user=postgres&password=postgres')
 
 
 class BaseModel(Model):
