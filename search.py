@@ -26,7 +26,7 @@ def run_query(query):
     global conn, cur
     try:
         conn = psycopg2.connect(
-            host="100.124.65.124",
+            host="192.168.50.92",
             port="49154",
             database="byu",
             user="postgres",
