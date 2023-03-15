@@ -1,11 +1,10 @@
 import psycopg2
 import re
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from peewee import SQL
 from pytz import timezone
 from typing import Union
-
 
 from models import Buildings, Events, Rooms, database
 
@@ -47,6 +46,10 @@ def run_query(query):
             conn.close()
 
 
+actioned_date = datetime.utcnow() - timedelta(hours=float(datetime.now(timezone('US/Mountain')).strftime('%z')[2]))
+my_date = datetime.combine(actioned_date.date(), actioned_date.time(), timezone('US/Mountain'))
+
+
 def lookup(input_building, input_room, input_time_type, input_timeA, input_timeB, input_days):
     database.connect()
     if True:
@@ -66,23 +69,22 @@ def lookup(input_building, input_room, input_time_type, input_timeA, input_timeB
             days.append(i)
 
         if input_time_type == 'now':
-            now = datetime.now(UTAH_TIMEZONE).time()
-            day = DAY_MAP[now.strftime('%a')]
+            day = DAY_MAP[my_date.strftime('%a')]
             conflicting_events = conflicting_events \
                 .where(Events.days.contains(day)) \
                 .where(
-                (Events.start_time <= now) & (Events.end_time > now)
+                (Events.start_time <= my_date) & (Events.end_time > my_date)
             )
+            print(conflicting_events)
         elif input_time_type == 'when':
-            now = datetime.now(UTAH_TIMEZONE)
-            day = DAY_MAP[now.strftime('%a')]
+            day = DAY_MAP[my_date.strftime('%a')]
             current_events = current_events \
                 .select(Events.name, Events.start_time, Events.end_time) \
                 .join(Rooms, on=Events.room_id) \
                 .join(Buildings, on=Rooms.building_id) \
                 .where(Buildings.name == input_building) \
                 .where(Rooms.number == input_room) \
-                .where(Events.end_time >= now.time()) \
+                .where(Events.end_time >= my_date.time()) \
                 .where(SQL("days && ARRAY['%s']::weekday[]" % day)) \
                 .order_by(Events.start_time) \
                 .limit(5)

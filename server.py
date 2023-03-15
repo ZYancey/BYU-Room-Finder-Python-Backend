@@ -1,6 +1,6 @@
 import pytz
 import search
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 from fastapi import FastAPI, Query
 
@@ -9,7 +9,8 @@ app = FastAPI()
 
 @app.get("/now/{building}")
 async def search_now(building):
-    my_date = datetime.now(pytz.timezone('US/Mountain'))
+    actioned_date = datetime.utcnow()-timedelta(hours=float(datetime.now(pytz.timezone('US/Mountain')).strftime('%z')[2]))
+    my_date = datetime.combine(actioned_date.date(), actioned_date.time(), pytz.timezone('US/Mountain'))
     print("Request Time: " + my_date.strftime('%m/%d %X'))
     result = search.lookup(building.upper(), '', 'now', '', '', '')
     return {"Rooms": result
@@ -20,7 +21,8 @@ async def search_now(building):
 async def search_at(building,
                     time: str = Query(min_length=8, regex="^[0-2][0-9]:[0-5][0-9]:[0-5][0-9]$", title='Time ##:##:##'),
                     d: List[str] = Query(default=[], max_length=2)):
-    my_date = datetime.now(pytz.timezone('US/Mountain'))
+    actioned_date = datetime.utcnow()-timedelta(hours=float(datetime.now(pytz.timezone('US/Mountain')).strftime('%z')[2]))
+    my_date = datetime.combine(actioned_date.date(), actioned_date.time(), pytz.timezone('US/Mountain'))
     print("Request Time: " + my_date.strftime('%m/%d %X'))
     if len(d) == 0:
         input_days = d
@@ -33,12 +35,13 @@ async def search_at(building,
 
 @app.get("/between/{building}/{timeA}/{timeB}")
 async def search_between(building,
-                         timeA: str = Query(min_length=8, regex="^[0-2][0-9]:[0-5][0-9]:[0-5][0-9]$",
+                        timeA: str = Query(min_length=8, regex="^[0-2][0-9]:[0-5][0-9]:[0-5][0-9]$",
                                             title='Time ##:##:##'),
-                         timeB: str = Query(min_length=8, regex="^[0-2][0-9]:[0-5][0-9]:[0-5][0-9]$",
+                        timeB: str = Query(min_length=8, regex="^[0-2][0-9]:[0-5][0-9]:[0-5][0-9]$",
                                             title='Time ##:##:##'),
-                         d: List[str] = Query(default=[], max_length=2)):
-    my_date = datetime.now(pytz.timezone('US/Mountain'))
+                        d: List[str] = Query(default=[], max_length=2)):
+    actioned_date = datetime.utcnow()-timedelta(hours=float(datetime.now(pytz.timezone('US/Mountain')).strftime('%z')[2]))
+    my_date = datetime.combine(actioned_date.date(), actioned_date.time(), pytz.timezone('US/Mountain'))
     print("Request Time: " + my_date.strftime('%m/%d %X'))
     if len(d) == 0:
         input_days = d
@@ -52,7 +55,8 @@ async def search_between(building,
 
 @app.get("/when/{building}/{room}")
 async def search_when(building, room):
-    my_date = datetime.now(pytz.timezone('US/Mountain'))
+    actioned_date = datetime.utcnow()-timedelta(hours=float(datetime.now(pytz.timezone('US/Mountain')).strftime('%z')[2]))
+    my_date = datetime.combine(actioned_date.date(), actioned_date.time(), pytz.timezone('US/Mountain'))
     print("Request Time: " + my_date.strftime('%m/%d %X'))
     day_events = search.lookup(building.upper(), room, 'when', '', '', [])
     busy_since = datetime(1970, 1, 1, 0, 0, 0, 0, pytz.timezone('US/Mountain'))
