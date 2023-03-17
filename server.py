@@ -1,4 +1,4 @@
-import pytz
+from pytz import timezone
 import search
 from datetime import datetime, timedelta
 from typing import List
@@ -6,12 +6,14 @@ from fastapi import FastAPI, Query
 
 app = FastAPI()
 
+now = datetime.now(timezone('US/Mountain')).strftime('%X')
+date_time = datetime.now(timezone('US/Mountain')).strftime('%m/%d %X')
+dayOfWeek = datetime.now(timezone('US/Mountain')).strftime('%a')
+
 
 @app.get("/now/{building}")
 async def search_now(building):
-    actioned_date = datetime.utcnow()-timedelta(hours=float(datetime.now(pytz.timezone('US/Mountain')).strftime('%z')[2]))
-    my_date = datetime.combine(actioned_date.date(), actioned_date.time(), pytz.timezone('US/Mountain'))
-    print("Request Time: " + my_date.strftime('%m/%d %X'))
+    print("Request Time: " + date_time)
     result = search.lookup(building.upper(), '', 'now', '', '', '')
     return {"Rooms": result
             }
@@ -21,9 +23,7 @@ async def search_now(building):
 async def search_at(building,
                     time: str = Query(min_length=8, regex="^[0-2][0-9]:[0-5][0-9]:[0-5][0-9]$", title='Time ##:##:##'),
                     d: List[str] = Query(default=[], max_length=2)):
-    actioned_date = datetime.utcnow()-timedelta(hours=float(datetime.now(pytz.timezone('US/Mountain')).strftime('%z')[2]))
-    my_date = datetime.combine(actioned_date.date(), actioned_date.time(), pytz.timezone('US/Mountain'))
-    print("Request Time: " + my_date.strftime('%m/%d %X'))
+    print("Request Time: " + date_time)
     if len(d) == 0:
         input_days = d
     else:
@@ -40,9 +40,7 @@ async def search_between(building,
                         timeB: str = Query(min_length=8, regex="^[0-2][0-9]:[0-5][0-9]:[0-5][0-9]$",
                                             title='Time ##:##:##'),
                         d: List[str] = Query(default=[], max_length=2)):
-    actioned_date = datetime.utcnow()-timedelta(hours=float(datetime.now(pytz.timezone('US/Mountain')).strftime('%z')[2]))
-    my_date = datetime.combine(actioned_date.date(), actioned_date.time(), pytz.timezone('US/Mountain'))
-    print("Request Time: " + my_date.strftime('%m/%d %X'))
+    print("Request Time: " + date_time)
     if len(d) == 0:
         input_days = d
     else:
@@ -55,24 +53,22 @@ async def search_between(building,
 
 @app.get("/when/{building}/{room}")
 async def search_when(building, room):
-    actioned_date = datetime.utcnow()-timedelta(hours=float(datetime.now(pytz.timezone('US/Mountain')).strftime('%z')[2]))
-    my_date = datetime.combine(actioned_date.date(), actioned_date.time(), pytz.timezone('US/Mountain'))
-    print("Request Time: " + my_date.strftime('%m/%d %X'))
+    actioned_date = datetime.utcnow()-timedelta(hours=float(datetime.now(timezone('US/Mountain')).strftime('%z')[2]))
+    my_date = datetime.combine(actioned_date.date(), actioned_date.time(), timezone('US/Mountain'))
+
+    print("Request Time: " + date_time)
     day_events = search.lookup(building.upper(), room, 'when', '', '', [])
-    busy_since = datetime(1970, 1, 1, 0, 0, 0, 0, pytz.timezone('US/Mountain'))
-    busy_until = datetime(1970, 1, 1, 0, 0, 0, 0, pytz.timezone('US/Mountain'))
     inUse = False
 
     if len(day_events) != 0:
-        busy_since = datetime.combine(datetime.now().date(), day_events[0][1], pytz.timezone('US/Mountain'))
-        busy_until = datetime.combine(datetime.now().date(), day_events[0][2], pytz.timezone('US/Mountain'))
+        busy_since = datetime.combine(datetime.now().date(), day_events[0][1], timezone('US/Mountain'))
+        busy_until = datetime.combine(datetime.now().date(), day_events[0][2], timezone('US/Mountain'))
         if len(day_events) == 1:
-            busy_until = datetime.combine(datetime.now().date(), day_events[0][2], pytz.timezone('US/Mountain'))
+            busy_until = datetime.combine(datetime.now().date(), day_events[0][2], timezone('US/Mountain'))
         else:
             for i in range(len(day_events) - 1):
-                end_time = datetime.combine(datetime.now().date(), day_events[i][2], pytz.timezone('US/Mountain'))
-                next_start_time = datetime.combine(datetime.now().date(), day_events[i + 1][1],
-                                                   pytz.timezone('US/Mountain'))
+                end_time = datetime.combine(datetime.now().date(), day_events[i][2], timezone('US/Mountain'))
+                next_start_time = datetime.combine(datetime.now().date(), day_events[i + 1][1], timezone('US/Mountain'))
                 if (next_start_time - end_time).seconds / 60 > 15:
                     busy_until = end_time
                     break
@@ -83,7 +79,7 @@ async def search_when(building, room):
                 "busyUntil": '',
                 "isInUse": False
                 }
-    return {"busySince": busy_since,
-            "busyUntil": busy_until,
+    return {"busySince": busy_since.strftime('%Y-%m-%dT%X-07:00'),
+            "busyUntil": busy_until.strftime('%Y-%m-%dT%X-07:00'),
             "isInUse": inUse
             }

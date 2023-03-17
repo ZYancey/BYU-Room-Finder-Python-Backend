@@ -1,7 +1,7 @@
 import psycopg2
 import re
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from peewee import SQL
 from pytz import timezone
 from typing import Union
@@ -21,33 +21,32 @@ DAY_MAP = {
 UTAH_TIMEZONE = timezone('US/Mountain')
 
 
-def run_query(query):
-    global conn, cur
+def run_query(query, connection=None, cursor=None):
     try:
-        conn = psycopg2.connect(
+        connection = psycopg2.connect(
             host="192.168.50.92",
             port="49154",
             database="byu",
             user="postgres",
             password="postgres"
         )
-        cur = conn.cursor()
-        cur.execute(query)
-        result = cur.fetchall()
+        cursor = connection.cursor()
+        cursor.execute(query)
+        result = cursor.fetchall()
         return result
     except (Exception, psycopg2.Error) as error:
         print("Error while connecting to Postgres", error)
-        if conn:
-            cur.close()
-            conn.close()
+        if connection:
+            cursor.close()
+            connection.close()
     finally:
-        if conn:
-            cur.close()
-            conn.close()
+        if connection:
+            cursor.close()
+            connection.close()
 
 
-actioned_date = datetime.utcnow() - timedelta(hours=float(datetime.now(timezone('US/Mountain')).strftime('%z')[2]))
-my_date = datetime.combine(actioned_date.date(), actioned_date.time(), timezone('US/Mountain'))
+now = datetime.now(timezone('US/Mountain')).strftime('%X')
+dayOfWeek = datetime.now(timezone('US/Mountain')).strftime('%a')
 
 
 def lookup(input_building, input_room, input_time_type, input_timeA, input_timeB, input_days):
@@ -69,22 +68,19 @@ def lookup(input_building, input_room, input_time_type, input_timeA, input_timeB
             days.append(i)
 
         if input_time_type == 'now':
-            day = DAY_MAP[my_date.strftime('%a')]
+            day = DAY_MAP[dayOfWeek]
             conflicting_events = conflicting_events \
                 .where(Events.days.contains(day)) \
-                .where(
-                (Events.start_time <= my_date) & (Events.end_time > my_date)
-            )
-            print(conflicting_events)
+                .where((Events.start_time <= now) & (Events.end_time > now))
         elif input_time_type == 'when':
-            day = DAY_MAP[my_date.strftime('%a')]
+            day = DAY_MAP[dayOfWeek]
             current_events = current_events \
                 .select(Events.name, Events.start_time, Events.end_time) \
                 .join(Rooms, on=Events.room_id) \
                 .join(Buildings, on=Rooms.building_id) \
                 .where(Buildings.name == input_building) \
                 .where(Rooms.number == input_room) \
-                .where(Events.end_time >= my_date.time()) \
+                .where(Events.end_time >= now) \
                 .where(SQL("days && ARRAY['%s']::weekday[]" % day)) \
                 .order_by(Events.start_time) \
                 .limit(5)
