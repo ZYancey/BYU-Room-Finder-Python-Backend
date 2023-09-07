@@ -46,13 +46,19 @@ def open_or_download_file(filename, fetch_fn):
 
 
 def get_class_info(row):
-    start, end = (
-        row.find_all("td")[COLUMNS["class_period"]]
-        .text.strip()
-        .replace("a", "am")
-        .replace("p", "pm")
-        .split(" - ")
-    )
+
+    try:
+        start, end = (
+            row.find_all("td")[COLUMNS["class_period"]]
+            .text.strip()
+            .replace("a", "am")
+            .replace("p", "pm")
+            .split(" - ")
+        )
+    except ValueError as e:
+        print(e)
+        start, end = '01:00am', '01:00am'
+
     start = time.strptime(start, TIME_FORMAT)
     end = time.strptime(end, TIME_FORMAT)
     days = row.find_all("td")[COLUMNS["days"]].text.strip()

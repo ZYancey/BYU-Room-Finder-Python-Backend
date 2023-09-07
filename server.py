@@ -15,6 +15,8 @@ dayOfWeek = datetime.now(timezone('US/Mountain')).strftime('%a')
 async def search_now(building):
     print("Request Time: " + date_time)
     result = search.lookup(building.upper(), '', 'now', '', '', '')
+    if building.upper() == 'ANY':
+        result = dict(result[:24])
     return {"Rooms": result
             }
 
