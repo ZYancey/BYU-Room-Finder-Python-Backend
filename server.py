@@ -24,39 +24,35 @@ async def search_now(building):
 
 @app.get("/at/{building}/{time}")
 async def search_at(building,
-                    time: str = Query(min_length=8, regex="^[0-2][0-9]:[0-5][0-9]:[0-5][0-9]$", title='Time ##:##:##'),
+                    time: str,
                     d: List[str] = Query(default=[], max_length=2)):
-    print("Request Time: " + date_time)
+    print("Request Time: " + time)
     if len(d) == 0:
         input_days = d
     else:
         input_days = [x.capitalize() for x in d]
     result = search.lookup(building.upper(), '', 'at', time, '', input_days)
-    return {"Rooms": result
-            }
+    return {"Rooms": result}
 
 
 @app.get("/between/{building}/{timeA}/{timeB}")
 async def search_between(building,
-                        timeA: str = Query(min_length=8, regex="^[0-2][0-9]:[0-5][0-9]:[0-5][0-9]$",
-                                            title='Time ##:##:##'),
-                        timeB: str = Query(min_length=8, regex="^[0-2][0-9]:[0-5][0-9]:[0-5][0-9]$",
-                                            title='Time ##:##:##'),
-                        d: List[str] = Query(default=[], max_length=2)):
-    print("Request Time: " + date_time)
+                         timeA: str,
+                         timeB: str,
+                         d: List[str] = Query(default=[], max_length=2)):
+    print("Request Time: " + timeA + " to " + timeB)
     if len(d) == 0:
         input_days = d
     else:
         input_days = [x.capitalize() for x in d]
 
     result = search.lookup(building.upper(), '', 'between', timeA, timeB, input_days)
-    return {"Rooms": result
-            }
+    return {"Rooms": result}
 
 
 @app.get("/when/{building}/{room}")
 async def search_when(building, room):
-    actioned_date = datetime.utcnow()-timedelta(hours=float(datetime.now(timezone('US/Mountain')).strftime('%z')[2]))
+    actioned_date = datetime.utcnow() - timedelta(hours=float(datetime.now(timezone('US/Mountain')).strftime('%z')[2]))
     my_date = datetime.combine(actioned_date.date(), actioned_date.time(), timezone('US/Mountain'))
 
     print("Request Time: " + date_time)
