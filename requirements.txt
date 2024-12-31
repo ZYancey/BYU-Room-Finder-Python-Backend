@@ -3,6 +3,6 @@ peewee==3.17.1
 psycopg2-binary==2.9.9
 pytz==2024.1
 requests==2.31.0
-
 fastapi==0.109.2
 uvicorn==0.27.0.post1
+python-dotenv==1.0.0
