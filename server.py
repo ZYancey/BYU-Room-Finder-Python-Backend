@@ -31,6 +31,7 @@ async def search_at(building,
         input_days = d
     else:
         input_days = [x.capitalize() for x in d]
+    print(input_days)
     result = search.lookup(building.upper(), '', 'at', time, '', input_days)
     return {"Rooms": result}
 

@@ -24,8 +24,8 @@ UTAH_TIMEZONE = timezone('US/Mountain')
 def run_query(query, connection=None, cursor=None):
     try:
         connection = psycopg2.connect(
-            host="192.168.50.92",
-            port="49154",
+            host="postgresql",
+            port="5432",
             database="byu",
             user="postgres",
             password="postgres"
@@ -117,5 +117,5 @@ def lookup(input_building, input_room, input_time_type, input_timeA, input_timeB
             query_str = str(result.select(Rooms.number, Buildings.name))
 
     database.close()
-
+    print(query_str)
     return run_query(query_str)
