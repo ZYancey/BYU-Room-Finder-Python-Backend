@@ -13,9 +13,9 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --no-cache-dir --upgrade psycopg2-binary
 RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
-COPY ./server.py /code/
-COPY ./search.py /code/
-COPY ./models.py /code/
+COPY ./scripts/server.py /code/
+COPY ./scripts/search.py /code/
+COPY ./scripts/models.py /code/
 COPY ./.env /code/
 
 EXPOSE 8080

@@ -1,8 +1,8 @@
 import os
+import random
+import search
 from dotenv import load_dotenv
 from pytz import timezone
-import search
-import random
 from datetime import datetime, timedelta
 from typing import List
 from fastapi import FastAPI, Query
@@ -29,7 +29,7 @@ async def search_now(building):
     print("Request Time: " + date_time)
     result = search.lookup(building.upper(), '', 'now', '', '', '')
     if building.upper() == 'ANY':
-        result = sorted(random.sample(result, 24), key=lambda x: x[1])
+        result = sorted(random.sample(result, min(24, len(result))), key=lambda x: x[1])
     return {"Rooms": result
             }
 

@@ -12,15 +12,17 @@
 # Fall: 5
 #
 # Just check the requests in the web app.
+from datetime import datetime
 import os
 import re
 import sys
 import time
-
+from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 import psycopg2
 import requests
 
+load_dotenv()
 
 COLUMNS = {
     "course": 0,
@@ -30,23 +32,37 @@ COLUMNS = {
 
 TIME_FORMAT = "%I:%M%p"
 
-YEAR_TERM = sys.argv[1]
-
+# Determine the YEAR_TERM from the command parameters
+if len(sys.argv) > 1:
+    YEAR_TERM = sys.argv[1]
+else:
+    current_date = datetime.now()
+    year = current_date.year
+    month = current_date.month
+    if 1 <= month <= 4:
+        term = 1  # Winter
+    elif 5 <= month <= 6:
+        term = 3  # Spring
+    elif 7 <= month <= 8:
+        term = 4  # Summer
+    else:
+        term = 5  # Fall
+    YEAR_TERM = f"{year}{term}"
+    print(f"Automatically determined YEAR_TERM: {YEAR_TERM}")
+    print("Usage: python scrape.py <YYYYT>")
 
 def open_or_download_file(filename, fetch_fn):
     try:
-        with open(f"out/{YEAR_TERM}/{filename}", "r") as fh:
+        with open(f"scraper/out/{YEAR_TERM}/{filename}", "r", encoding="utf-8") as fh:
             html = fh.read()
     except FileNotFoundError:
         html = fetch_fn()
-        with open(f"out/{YEAR_TERM}/{filename}", "w") as fh:
+        with open(f"out/{YEAR_TERM}/{filename}", "w", encoding="utf-8") as fh:
             print(html, file=fh)
         time.sleep(0.1)  # to avoid overwhelming the server
     return html
 
-
 def get_class_info(row):
-
     try:
         start, end = (
             row.find_all("td")[COLUMNS["class_period"]]
@@ -66,12 +82,10 @@ def get_class_info(row):
         "name": row.find_all("td")[COLUMNS["course"]].text.strip(),
         "start": start,
         "end": end,
-        # TODO: There is a "Daily" value that appears in the days field
         "days": ["M", "T", "W", "Th", "F"]
         if days == "Daily"
         else re.findall(r"(Th|Sa|Su|M|T|W|F)", days),
     }
-
 
 def get_room_info(building, room):
     html = open_or_download_file(
@@ -83,6 +97,7 @@ def get_room_info(building, room):
                 "building": building,
                 "room": room,
             },
+            timeout=10,
         ).text,
     )
     result = {}
@@ -97,31 +112,43 @@ def get_room_info(building, room):
             result["classes"].append(get_class_info(row))
     return result
 
-
 def get_buildings_rooms(buildings):
     for building in buildings:
         html = open_or_download_file(
             f"{building}-list.html",
-            lambda: requests.post(
+            lambda building=building: requests.post(
                 "https://y.byu.edu/class_schedule/cgi/classRoom2.cgi",
                 data={
                     "e": "@loadRooms",
                     "year_term": YEAR_TERM,
                     "building": building,
                 },
+                timeout=10,
             ).text,
         )
         soup = BeautifulSoup(html, "html.parser")
         yield (building, [tag.text for tag in soup.find("table").find_all("a")])
 
-
 def main():
     try:
-        os.mkdir(f"out/{YEAR_TERM}")
+        os.mkdir(f"scraper/out/{YEAR_TERM}")
     except FileExistsError:
         print("Folder exists.")
-    # TODO: env variables
-    conn = psycopg2.connect(sys.argv[2])
+
+    # Load database connection details from environment variables
+    db_host = os.getenv('DB_HOST')
+    db_port = os.getenv('DB_PORT')
+    db_name = os.getenv('DB_NAME')
+    db_user = os.getenv('DB_USER')
+    db_password = os.getenv('DB_PASSWORD')
+
+    conn = psycopg2.connect(
+        host=db_host,
+        port=db_port,
+        dbname=db_name,
+        user=db_user,
+        password=db_password
+    )
     cur = conn.cursor()
     cur.execute("TRUNCATE buildings CASCADE")
     index = open_or_download_file(
@@ -129,6 +156,7 @@ def main():
         lambda: requests.post(
             "https://y.byu.edu/class_schedule/cgi/classRoom2.cgi",
             data={ "year_term": YEAR_TERM, },
+            timeout=10
         ).text
     )
 
@@ -157,8 +185,6 @@ def main():
             for class_ in room_info["classes"]:
                 print(f"    {classes:04}: {class_['name']}")
                 classes += 1
-                # TODO: How do we deal with time zones? Might be best to not store them and simply
-                # look up the current time in mountain time to query a "now" value?
                 cur.execute(
                     """INSERT INTO events (room_id, name, days, start_time, end_time)
                         VALUES (%s, %s, %s::weekday[], %s, %s)""",
@@ -171,7 +197,6 @@ def main():
                     ),
                 )
             conn.commit()
-
 
 if __name__ == "__main__":
     main()
