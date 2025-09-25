@@ -71,7 +71,7 @@ def lookup(input_building, input_room, input_time_type, input_timeA, input_timeB
     if input_time_type == 'now':
         day = DAY_MAP[dayOfWeek]
         conflicting_events = conflicting_events \
-            .where(SQL("days && ARRAY['%s']" % day)) \
+            .where(SQL("days && ARRAY[%s]::weekday[]", (day,))) \
             .where((Events.start_time <= now) & (Events.end_time > now))
     elif input_time_type == 'when':
         day = DAY_MAP[dayOfWeek]
@@ -82,7 +82,7 @@ def lookup(input_building, input_room, input_time_type, input_timeA, input_timeB
             .where(Buildings.name == input_building) \
             .where(Rooms.number == input_room) \
             .where(Events.end_time >= now) \
-            .where(SQL("days && ARRAY['%s']" % day)) \
+            .where(SQL("days && ARRAY[%s]::weekday[]", (day,))) \
             .order_by(Events.start_time) \
             .limit(5)
     elif input_time_type == 'at':
@@ -90,8 +90,10 @@ def lookup(input_building, input_room, input_time_type, input_timeA, input_timeB
             database.close()
             raise Exception("from and to times required for time range")
         time_temp = input_timeA
+        # Format days list as PostgreSQL array literal
+        days_array = '{%s}' % ','.join(days) if days else '{}'
         conflicting_events = conflicting_events \
-            .where(SQL("days && ARRAY[%s]" % days)) \
+            .where(SQL("days && %s::weekday[]", (days_array,))) \
             .where(
             (Events.start_time <= time_temp) & (Events.end_time > time_temp)
         )
@@ -100,8 +102,10 @@ def lookup(input_building, input_room, input_time_type, input_timeA, input_timeB
                 not re.match("^[0-2][0-9]:[0-5][0-9]:[0-5][0-9]$", input_timeB):
             database.close()
             raise Exception("from and to times required for time range")
+        # Format days list as PostgreSQL array literal
+        days_array = '{%s}' % ','.join(days) if days else '{}'
         conflicting_events = conflicting_events \
-            .where(SQL("days && ARRAY[%s]" % days)) \
+            .where(SQL("days && %s::weekday[]", (days_array,))) \
             .where(
             SQL(
                 "timerange(start_time::time, end_time::time, '()') && timerange('%s'::time, '%s'::time)" %
