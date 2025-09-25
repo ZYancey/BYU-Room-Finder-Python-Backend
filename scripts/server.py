@@ -1,15 +1,25 @@
 import os
 import random
 import search
-from dotenv import load_dotenv
-from pytz import timezone
+import threading
+import time
 from datetime import datetime, timedelta
 from typing import List
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
+from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
+from pytz import timezone
+
+from models import database
 
 load_dotenv()
 
 app = FastAPI()
+
+# Global variable to store database connectivity status
+# True = connected, False = not connected
+DB_STATUS = True
+DB_STATUS_LOCK = threading.Lock()
 
 DATABASE = {
     'name': os.getenv('DB_NAME'),
@@ -22,6 +32,40 @@ DATABASE = {
 now = datetime.now(timezone('US/Mountain')).strftime('%X')
 date_time = datetime.now(timezone('US/Mountain')).strftime('%m/%d %X')
 dayOfWeek = datetime.now(timezone('US/Mountain')).strftime('%a')
+
+
+def check_database_connection():
+    """Check if database connection is working"""
+    try:
+        database.connect()
+        # Try to execute a simple query to verify connection
+        cursor = database.execute_sql('SELECT 1')
+        cursor.fetchone()
+        cursor.close()
+        database.close()
+        return True
+    except Exception as e:
+        print(f"Database connection failed: {e}")
+        try:
+            database.close()
+        except:
+            pass
+        return False
+
+
+def update_database_status():
+    """Background task to update database status every 5 minutes"""
+    global DB_STATUS
+    while True:
+        with DB_STATUS_LOCK:
+            DB_STATUS = check_database_connection()
+        print(f"Database status updated: {'Connected' if DB_STATUS else 'Disconnected'}")
+        time.sleep(300)  # Sleep for 5 minutes
+
+
+# Start the background task
+status_thread = threading.Thread(target=update_database_status, daemon=True)
+status_thread.start()
 
 
 @app.get("/now/{building}")
@@ -95,3 +139,13 @@ async def search_when(building, room):
             "busyUntil": busy_until.strftime('%Y-%m-%dT%X-07:00'),
             "isInUse": inUse
             }
+
+
+@app.get("/status")
+async def get_status():
+    """Status endpoint that returns 200 if service is healthy, 500 if database is unavailable"""
+    with DB_STATUS_LOCK:
+        if DB_STATUS:
+            return {"status": "healthy", "database": "connected"}
+        else:
+            raise HTTPException(status_code=500, detail="Database connection failed")
