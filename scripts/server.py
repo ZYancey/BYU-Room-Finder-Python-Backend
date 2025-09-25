@@ -37,30 +37,37 @@ dayOfWeek = datetime.now(timezone('US/Mountain')).strftime('%a')
 def check_database_connection():
     """Check if database connection is working"""
     try:
-        database.connect()
-        # Try to execute a simple query to verify connection
-        cursor = database.execute_sql('SELECT 1')
-        cursor.fetchone()
+        # Use psycopg2 directly to avoid interfering with Peewee connections
+        import psycopg2
+
+        connection = psycopg2.connect(
+            host=os.getenv('DB_HOST'),
+            port=os.getenv('DB_PORT'),
+            database=os.getenv('DB_NAME'),
+            user=os.getenv('DB_USER'),
+            password=os.getenv('DB_PASSWORD')
+        )
+
+        cursor = connection.cursor()
+        cursor.execute('SELECT 1')
+        result = cursor.fetchone()
         cursor.close()
-        database.close()
-        return True
+        connection.close()
+
+        return result is not None
     except Exception as e:
         print(f"Database connection failed: {e}")
-        try:
-            database.close()
-        except:
-            pass
         return False
 
 
 def update_database_status():
-    """Background task to update database status every 5 minutes"""
+    """Background task to update database status every 10 minutes"""
     global DB_STATUS
     while True:
         with DB_STATUS_LOCK:
             DB_STATUS = check_database_connection()
         print(f"Database status updated: {'Connected' if DB_STATUS else 'Disconnected'}")
-        time.sleep(300)  # Sleep for 5 minutes
+        time.sleep(600)  # Sleep for 10 minutes
 
 
 # Start the background task
