@@ -71,7 +71,7 @@ def lookup(input_building, input_room, input_time_type, input_timeA, input_timeB
     if input_time_type == 'now':
         day = DAY_MAP[dayOfWeek]
         conflicting_events = conflicting_events \
-            .where(Events.days.contains(day)) \
+            .where(SQL("days && ARRAY['%s']" % day)) \
             .where((Events.start_time <= now) & (Events.end_time > now))
     elif input_time_type == 'when':
         day = DAY_MAP[dayOfWeek]
@@ -82,7 +82,7 @@ def lookup(input_building, input_room, input_time_type, input_timeA, input_timeB
             .where(Buildings.name == input_building) \
             .where(Rooms.number == input_room) \
             .where(Events.end_time >= now) \
-            .where(SQL("days && ARRAY['%s']::weekday[]" % day)) \
+            .where(SQL("days && ARRAY['%s']" % day)) \
             .order_by(Events.start_time) \
             .limit(5)
     elif input_time_type == 'at':
@@ -91,7 +91,7 @@ def lookup(input_building, input_room, input_time_type, input_timeA, input_timeB
             raise Exception("from and to times required for time range")
         time_temp = input_timeA
         conflicting_events = conflicting_events \
-            .where(SQL("days && ARRAY[%s]::weekday[]" % days)) \
+            .where(SQL("days && ARRAY[%s]" % days)) \
             .where(
             (Events.start_time <= time_temp) & (Events.end_time > time_temp)
         )
@@ -101,7 +101,7 @@ def lookup(input_building, input_room, input_time_type, input_timeA, input_timeB
             database.close()
             raise Exception("from and to times required for time range")
         conflicting_events = conflicting_events \
-            .where(SQL("days && ARRAY[%s]::weekday[]" % days)) \
+            .where(SQL("days && ARRAY[%s]" % days)) \
             .where(
             SQL(
                 "timerange(start_time::time, end_time::time, '()') && timerange('%s'::time, '%s'::time)" %
@@ -110,12 +110,26 @@ def lookup(input_building, input_room, input_time_type, input_timeA, input_timeB
         )
 
     if input_time_type == "when":
-        query_str = str(current_events)
+        # Execute the query directly with Peewee instead of converting to string
+        try:
+            final_results = list(current_events)
+            return [(event.name, event.start_time, event.end_time) for event in final_results]
+        except Exception as e:
+            print(f"Error executing query: {e}")
+            return []
+        finally:
+            database.close()
     else:
         result = result \
             .where(Rooms.id.not_in([*map(lambda x: x.room_id, conflicting_events)])) \
             .order_by(Buildings.name, Rooms.number)
-        query_str = str(result.select(Rooms.number, Buildings.name))
 
-    database.close()
-    return run_query(query_str)
+        # Execute the query directly with Peewee instead of converting to string
+        try:
+            final_results = list(result)
+            return [(room.number, building.name) for room, building in final_results]
+        except Exception as e:
+            print(f"Error executing query: {e}")
+            return []
+        finally:
+            database.close()
